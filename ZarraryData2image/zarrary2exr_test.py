@@ -172,44 +172,44 @@ def zarrary_to_exr_all_in_directory(root_dir, output_dir):
                         zarrary_to_exr_color(zarr_file, output_file)
                         print (output_file)
 
-                    elif file_name == "motion":
-                        if not os.path.exists(output_file):
-                            os.makedirs(output_file)
-                        zarr_file = os.path.join(folder_path, file_name)
+                    # elif file_name == "motion":
+                    #     if not os.path.exists(output_file):
+                    #         os.makedirs(output_file)
+                    #     zarr_file = os.path.join(folder_path, file_name)
 
-                        zarrary_to_exr_others(zarr_file, output_file, "motion")
+                    #     zarrary_to_exr_others(zarr_file, output_file, "motion")
 
-                    elif file_name == "reference":
-                        if not os.path.exists(output_file):
-                            os.makedirs(output_file)
+                    # elif file_name == "reference":
+                    #     if not os.path.exists(output_file):
+                    #         os.makedirs(output_file)
 
-                        zarr_file = os.path.join(folder_path, file_name)
-                        zarrary_to_exr_reference(zarr_file, output_file)
+                    #     zarr_file = os.path.join(folder_path, file_name)
+                    #     zarrary_to_exr_reference(zarr_file, output_file)
 
-                    elif file_name == "diffuse":
-                        if not os.path.exists(output_file):
-                            os.makedirs(output_file)
+                    # elif file_name == "diffuse":
+                    #     if not os.path.exists(output_file):
+                    #         os.makedirs(output_file)
 
-                        zarr_file = os.path.join(folder_path, file_name)
-                        zarrary_to_exr_others(zarr_file, output_file, "diffuse")
+                    #     zarr_file = os.path.join(folder_path, file_name)
+                    #     zarrary_to_exr_others(zarr_file, output_file, "diffuse")
 
-                    elif file_name == "normal":
-                        if not os.path.exists(output_file):
-                            os.makedirs(output_file)
+                    # elif file_name == "normal":
+                    #     if not os.path.exists(output_file):
+                    #         os.makedirs(output_file)
 
-                        zarr_file = os.path.join(folder_path, file_name)
-                        zarrary_to_exr_others(zarr_file, output_file, "normal")
+                    #     zarr_file = os.path.join(folder_path, file_name)
+                    #     zarrary_to_exr_others(zarr_file, output_file, "normal")
 
-                    elif file_name == "position":
-                        if not os.path.exists(output_file):
-                            os.makedirs(output_file)
+                    # elif file_name == "position":
+                    #     if not os.path.exists(output_file):
+                    #         os.makedirs(output_file)
 
-                        zarr_file = os.path.join(folder_path, file_name)
-                        zarrary_to_exr_others(zarr_file, output_file, "position")
+                    #     zarr_file = os.path.join(folder_path, file_name)
+                    #     zarrary_to_exr_others(zarr_file, output_file, "position")
 
 
 def zarrary_to_exr_total(root_dir, output_dir, unzip_file):
-    unzip_all_in_directory(root_dir, unzip_file)
+    # unzip_all_in_directory(root_dir, unzip_file)
     zarrary_to_exr_all_in_directory(unzip_file, output_dir)
 
 
