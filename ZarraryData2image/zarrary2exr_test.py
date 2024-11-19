@@ -4,6 +4,26 @@ import OpenEXR, Imath
 import zipfile
 import os
 from tqdm import tqdm
+import imageio.v3 as iio
+
+
+# decompress RGBE
+def decompress_RGBE(color, exposures):
+    """Decompresses per-sample radiance from RGBE compressed data
+
+    Args:
+        color (ndarray, uint8, 4HWS): radiance data in RGBE representation
+        [min_exposure, max_exposure]: exposure range for decompression
+
+    Returns:
+        color (ndarray, 3HWS): per-sample RGB radiance
+    """
+    exponents = (color.astype(np.float32)[3] + 1)/256
+    #exposures = np.reshape(exposures, (1, 1, 1, 2))
+
+    exponents = np.exp(exponents * (exposures[1] - exposures[0]) + exposures[0])
+    color = color.astype(np.float32)[:3] / 255 * exponents[np.newaxis]
+    return color
 
 
 def zarrary_to_exr_color(zarr_file, exr_folder):
@@ -12,28 +32,37 @@ def zarrary_to_exr_color(zarr_file, exr_folder):
 
     z = zarr.open(zarr_file, mode="r")
     data = np.array(z)
-    averaged_data = np.mean(data, axis=-1)
 
     header = OpenEXR.Header(data.shape[2], data.shape[1])
     header["channels"] = {
         "R": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
         "G": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
         "B": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
-        "A": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
     }
 
     # for color
     exr_file_i = os.path.join(exr_folder, f"color.exr")
     exr = OpenEXR.OutputFile(exr_file_i, header)
 
-    R = (averaged_data[0, :, :].astype(np.float32) / 255.0).tobytes()
-    G = (averaged_data[1, :, :].astype(np.float32) / 255.0).tobytes()
-    B = (averaged_data[2, :, :].astype(np.float32) / 255.0).tobytes()
-    A = (averaged_data[3, :, :].astype(np.float32) / 255.0).tobytes()
+    color = np.zeros((4, data.shape[1], data.shape[2], data.shape[3]), dtype=np.uint8)
+    color[0] = (data[0]).astype(np.uint8)
+    color[1] = (data[1]).astype(np.uint8)
+    color[2] = (data[2]).astype(np.uint8)
+    color[3] = (data[3]).astype(np.uint8)
+    
+    
+    dirname = os.path.dirname(zarr_file)
+    exposure_path = os.path.join(dirname, "exposure")
+    exposure_zarr = zarr.open(exposure_path, mode = 'r')
+    exposure = exposure_zarr[:]
 
-    exr.writePixels({"R": R, "G": G, "B": B})
+    modified_color = decompress_RGBE(color, exposure)  
+    modified_color = np.mean(modified_color, axis=-1)
+
+    exr.writePixels({'R': modified_color[0].tobytes(), 
+                     'G': modified_color[1].tobytes(), 
+                     'B': modified_color[2].tobytes()})
     exr.close()
-    print(f"{zarr_file} to {exr_file_i} done")
 
 
 def zarrary_to_exr_reference(zarr_file, exr_folder):
@@ -134,19 +163,21 @@ def zarrary_to_exr_all_in_directory(root_dir, output_dir):
                 for file_name in tqdm(
                     os.listdir(folder_path), desc=f"Processing {folder_name}"
                 ):
-                    if file_name == "motion":
-                        if not os.path.exists(output_file):
-                            os.makedirs(output_file)
-                        zarr_file = os.path.join(folder_path, file_name)
 
-                        zarrary_to_exr_others(zarr_file, output_file, "motion")
-
-                    elif file_name == "color":
+                    if file_name == "color":
                         if not os.path.exists(output_file):
                             os.makedirs(output_file)
 
                         zarr_file = os.path.join(folder_path, file_name)
                         zarrary_to_exr_color(zarr_file, output_file)
+                        print (output_file)
+
+                    elif file_name == "motion":
+                        if not os.path.exists(output_file):
+                            os.makedirs(output_file)
+                        zarr_file = os.path.join(folder_path, file_name)
+
+                        zarrary_to_exr_others(zarr_file, output_file, "motion")
 
                     elif file_name == "reference":
                         if not os.path.exists(output_file):
@@ -183,5 +214,5 @@ def zarrary_to_exr_total(root_dir, output_dir, unzip_file):
 
 
 zarrary_to_exr_total(
-    "/data/hjy/balintio/noisebase/data/sampleset_v1/test8", "./output", "./unzip_file"
+    "/data/hjy/balintio/noisebase/data/sampleset_v1/test8", "/data/hjy/exrset_test/output", "/data/hjy/exrset_test/unzip_file"
 )
