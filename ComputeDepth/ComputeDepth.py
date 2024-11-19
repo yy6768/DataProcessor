@@ -47,8 +47,11 @@ def ComputeDepth(root_dir):
             position_array = np.stack(channel_data, axis=0)
             
             # Compute depth
+            print('\n')
+            print(f"position: {position_array.shape}")
+            print(f"camera_position: {camera_position_array.shape}")
             depth_data = depth(position_array, camera_position_array)
-            print(depth_data.shape)
+            print(f"depth: {depth_data.shape}")
             assert 0
             
             # output exr file
