@@ -1,0 +1,75 @@
+import numpy as np
+
+# log depth
+def log_depth(w_position, pos):
+    """Computes per-sample compressed depth (disparity-ish)
+
+    Args:
+        w_position (ndarray, 3HWS): per-sample world-space positions
+        pos (ndarray, size (3)): the camera's position in world-space
+    
+    Returns:
+        motion (ndarray, 1HWS): per-sample compressed depth
+    """
+    # TODO: support any number of extra dimensions like apply_array
+    d = np.linalg.norm(w_position - np.reshape(pos, (3, 1, 1, 1)), axis=0, keepdims=True)
+    return np.log(1 + 1/d)
+
+def normalize(v):
+    return v / np.linalg.norm(v)
+
+def apply_camera(self, target, up, pos, p, offset):
+    """Applies orientation change to camera intrinsics
+
+    Args:
+        target (ndarray, size (3)): a world-space point the camera is pointing at (center of the frame)
+        up (ndarray, size (3)): vector in world-space that points upward in screen-space
+        pos (ndarray, size (3)): the camera's position in world-space
+        p (ndarray, size (4,4)): projective matrix of the camera e.g.
+            [0.984375, 0.,   0.,      0.     ],
+            [0.,       1.75, 0.,      0.     ],
+            [0.,       0.,   1.0001, -0.10001],
+            [0.,       0.,   1.,      0.     ]
+        offset (ndarray, size (2)): offset of random crop (window) from top left corner of camera frame (in pixels)
+
+    Returns:
+        W (ndarray, size (3)): vector in world-space that points forward in screen-space
+        V (ndarray, size (3)): vector in world-space that points up in screen-space
+        U (ndarray, size (3)): vector in world-space that points right in screen-space
+        pos (ndarray, size (3)): unchanged camera position
+        offset (ndarray, size (2)): transformed offset, MAY BE NEGATIVE!
+        pv (ndarray, size (4,4)): computed view-projection matrix, ROW VECTOR
+    """
+
+    # make orthonormal camera basis
+    W = normalize(target - pos) # forward
+    U = normalize(np.cross(W, up)) # right
+    V = normalize(np.cross(U, W)) # up
+
+    # flip rotate offset and basis 8 cases
+    if self.orientation % 2 < 1: # flip horizontally
+        U = -U
+        offset[1] = self.width - offset[1] - self.window
+
+    if self.orientation % 4 < 2: # flip vertically
+        V = -V
+        offset[0] = self.height - offset[0] - self.window
+
+    if self.orientation % 8 < 4: # rotate 90 degrees
+        U, V = V, U
+        offset = (self.height + self.width)//2 - self.window - np.flip(offset)
+
+    # view matrix for transformed camera basis
+    view_basis = np.pad(np.stack([U, V, W], 0), [[0,1], [0,1]]) + np.diag([0.,0.,0.,1.])
+
+    # view matrix for camera position
+    view_translate = np.pad(-pos[:, np.newaxis], [[0, 1], [3, 0]]) + np.diag([1.,1.,1.,1.])
+
+    # combined view matrix
+    v = np.matmul(view_basis, view_translate)
+    
+    # view-projection matrix
+    # DirectX ROW VECTOR ALERT!
+    pv = np.matmul(v.T,p.T).astype(np.float32)
+    
+    return W, V, U, pos, offset, pv
