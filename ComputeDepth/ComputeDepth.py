@@ -48,10 +48,6 @@ def ComputeDepth(root_dir):
             
             # Compute depth
             depth_data = depth(position_array, camera_position_array)
-            min_val = np.min(depth_data)
-            max_val = np.max(depth_data)
-            normalized_depth_data = (depth_data - min_val) / (max_val - min_val)
-            depth_data = normalized_depth_data
             
             # output exr file
             _, _, height, width = depth_data.shape
