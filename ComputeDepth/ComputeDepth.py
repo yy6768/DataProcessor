@@ -48,6 +48,8 @@ def ComputeDepth(root_dir):
             
             # Compute depth
             depth_data = depth(position_array, camera_position_array)
+            print(depth_data.shape)
+            assert 0
             
             # output exr file
             _, _, height, width = depth_data.shape
