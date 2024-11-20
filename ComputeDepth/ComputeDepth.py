@@ -41,11 +41,11 @@ def ComputeDepth(root_dir):
             position[2] = (data[2]).astype(np.float32)
 
             # Compute depth
-            print('\n')
-            print(f"position: {position.shape}")
-            print(f"camera_position: {camera_position.shape}")
+            # print('\n')
+            # print(f"position: {position.shape}")
+            # print(f"camera_position: {camera_position.shape}")
             depth_data = depth(position, camera_position)
-            print(f"depth: {depth_data.shape}")
+            # print(f"depth: {depth_data.shape}")
             
             # output exr file
             _, height, width, _ = depth_data.shape
@@ -56,16 +56,15 @@ def ComputeDepth(root_dir):
             }
             
             depth_path = os.path.join(f"/data/hjy/exrset_test/output/{scene}/{frame}", "depth.exr")
-            print(depth_path)
+            # print(depth_path)
             exr_file = OpenEXR.OutputFile(depth_path, header)
             depth_data = np.mean(depth_data, axis=-1)
             min = np.min(depth_data)
-            print(f"depth: {depth_data.shape}")
+            # print(f"depth: {depth_data.shape}")
             
             R = depth_data[0, :, :].astype(np.float32).tobytes()
             
             exr_file.writePixels({"R": R})
             exr_file.close()
-            assert 0
             
 ComputeDepth("/data/hjy/exrset_test/unzip_file")
