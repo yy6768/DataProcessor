@@ -3,6 +3,7 @@ from tqdm import tqdm
 import os
 import OpenEXR
 import Imath
+import zarr
 
 # log depth
 def depth(w_position, pos):
@@ -26,52 +27,45 @@ def ComputeDepth(root_dir):
         for frame in tqdm(os.listdir(scene_path), desc = f"Processing frames in {scene}"):
             frame_path = os.path.join(scene_path, frame)
             # camera_position
-            camera_position_path = os.path.join(frame_path, "camera_position.txt")
-            with open(camera_position_path, 'r') as file:
-                data = file.readlines()
-            camera_position = [float(line.strip()) for line in data]
-            camera_position_array = np.array(camera_position)
+            camera_position_path = os.path.join(frame_path, "camera_position")
+            camera_position_zarr = zarr.open(camera_position_path, mode = 'r')
+            camera_position = np.array(camera_position_zarr)
             
             # position
-            position_path = os.path.join(frame_path, "position.exr")
-            exr_file = OpenEXR.InputFile(position_path)
-            header = exr_file.header()
-            dw = header['dataWindow']
-            width = dw.max.x - dw.min.x + 1
-            height = dw.max.y - dw.min.y + 1
-            channels = ['R', 'G', 'B']
-            channel_data = [np.frombuffer(exr_file.channel(c), dtype=np.float32) for c in channels]
-    
-            channel_data = [c.reshape((height, width)) for c in channel_data]
-            
-            position_array = np.stack(channel_data, axis=0)
-            
+            position_path = os.path.join(frame_path, "position")
+            z = zarr.open(position_path, mode="r")
+            data = np.array(z)
+            position = np.zeros((data.shape[0], data.shape[1], data.shape[2], data.shape[3]), dtype=np.float32)
+            position[0] = (data[0]).astype(np.float32)
+            position[1] = (data[1]).astype(np.float32)
+            position[2] = (data[2]).astype(np.float32)
+
             # Compute depth
             print('\n')
-            print(f"position: {position_array.shape}")
-            print(f"camera_position: {camera_position_array.shape}")
-            depth_data = depth(position_array, camera_position_array)
+            print(f"position: {position.shape}")
+            print(f"camera_position: {camera_position.shape}")
+            depth_data = depth(position, camera_position)
             print(f"depth: {depth_data.shape}")
-            assert 0
             
             # output exr file
-            _, _, height, width = depth_data.shape
+            _, height, width, _ = depth_data.shape
     
             header = OpenEXR.Header(width, height)
             header["channels"] = {
                 "R": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
-                "G": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
-                "B": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
             }
             
-            depth_path = os.path.join(frame_path, "depth.exr")
+            depth_path = os.path.join(f"/data/hjy/exrset_test/output/{scene}/{frame}", "depth.exr")
+            print(depth_path)
             exr_file = OpenEXR.OutputFile(depth_path, header)
+            depth_data = np.mean(depth_data, axis=-1)
+            min = np.min(depth_data)
+            print(f"depth: {depth_data.shape}")
             
-            R = depth_data[:, 0, :, :].astype(np.float32).tobytes()
-            G = depth_data[:, 1, :, :].astype(np.float32).tobytes()
-            B = depth_data[:, 2, :, :].astype(np.float32).tobytes()
+            R = depth_data[0, :, :].astype(np.float32).tobytes()
             
-            exr_file.writePixels({"R": R, "G": G, "B": B})
+            exr_file.writePixels({"R": R})
             exr_file.close()
+            assert 0
             
-ComputeDepth("/data/hjy/exrset_test/output")
+ComputeDepth("/data/hjy/exrset_test/unzip_file")
