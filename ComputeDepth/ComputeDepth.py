@@ -65,9 +65,9 @@ def ComputeDepth(root_dir):
             depth_max = depth_data.max()
             depth_data = (depth_data - depth_min) / (depth_max - depth_min)
             
-            R = depth_data[:, :, 0].astype(np.float32).tobytes()
-            G = depth_data[:, :, 0].astype(np.float32).tobytes()
-            B = depth_data[:, :, 0].astype(np.float32).tobytes()
+            R = depth_data[0, :, :].astype(np.float32).tobytes()
+            G = depth_data[0, :, :].astype(np.float32).tobytes()
+            B = depth_data[0, :, :].astype(np.float32).tobytes()
             
             exr_file.writePixels({"R": R, "G": G, "B": B})
             exr_file.close()
