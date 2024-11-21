@@ -23,8 +23,6 @@ def depth(w_position, pos):
 
 def ComputeDepth(root_dir):
     for scene in tqdm(os.listdir(root_dir), desc = f"Processing scenes in {root_dir}"):
-        if scene != "bistro1":
-            continue
         scene_path = os.path.join(root_dir, scene)
         for frame in tqdm(os.listdir(scene_path), desc = f"Processing frames in {scene}"):
             frame_path = os.path.join(scene_path, frame)
