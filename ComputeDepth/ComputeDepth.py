@@ -23,6 +23,8 @@ def depth(w_position, pos):
 
 def ComputeDepth(root_dir):
     for scene in tqdm(os.listdir(root_dir), desc = f"Processing scenes in {root_dir}"):
+        if scene != "bistro1":
+            continue
         scene_path = os.path.join(root_dir, scene)
         for frame in tqdm(os.listdir(scene_path), desc = f"Processing frames in {scene}"):
             frame_path = os.path.join(scene_path, frame)
@@ -53,18 +55,23 @@ def ComputeDepth(root_dir):
             header = OpenEXR.Header(width, height)
             header["channels"] = {
                 "R": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
+                "G": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
+                "B": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT)),
             }
             
             depth_path = os.path.join(f"/data/hjy/exrset_test/output/{scene}/{frame}", "depth.exr")
             # print(depth_path)
             exr_file = OpenEXR.OutputFile(depth_path, header)
             depth_data = np.mean(depth_data, axis=-1)
-            min = np.min(depth_data)
-            # print(f"depth: {depth_data.shape}")
+            depth_min = depth_data.min()
+            depth_max = depth_data.max()
+            depth_data = (depth_data - depth_min) / (depth_max - depth_min)
             
-            R = depth_data[0, :, :].astype(np.float32).tobytes()
+            R = depth_data[:, :, 0].astype(np.float32).tobytes()
+            G = depth_data[:, :, 0].astype(np.float32).tobytes()
+            B = depth_data[:, :, 0].astype(np.float32).tobytes()
             
-            exr_file.writePixels({"R": R})
+            exr_file.writePixels({"R": R, "G": G, "B": B})
             exr_file.close()
             
 ComputeDepth("/data/hjy/exrset_test/unzip_file")
