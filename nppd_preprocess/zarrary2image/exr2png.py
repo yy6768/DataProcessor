@@ -1,3 +1,7 @@
+"""
+
+Convert exr to png
+"""
 import os
 import OpenEXR
 import Imath
@@ -29,6 +33,13 @@ def exr_to_png(exr_path, png_path):
 
     # 合并通道
     img = np.stack([red, green, blue], axis=-1)
+    
+    # img = img / (img + 1.0)
+
+    # **添加gamma校正**
+    img = np.clip(img, 0, 1)
+    # img = img ** (1.0 / 2.2)
+    # img = np.power(img, 1.0 / 2.2)
 
     # 归一化到0-255并转换为uint8
     img = (img * 255).astype(np.uint8)
@@ -117,7 +128,12 @@ def convert_all_exr_to_png(input_directory, output_directory):
                     
 
 
-if __name__ == "__main__":
-    input_directory = "../exrset_test/output"
-    output_directory = "../output_png"
-    convert_all_exr_to_png(input_directory, output_directory)
+# if __name__ == "__main__":
+#     input_directory = "../exrset_test/output"
+#     output_directory = "../output_png"
+#     convert_all_exr_to_png(input_directory, output_directory)
+
+exr_set = "./exrset_test/output/bistro1/frame0000/reference.exr"
+output = "./frame0000.png"
+
+exr_to_png(exr_set, output)

@@ -1,3 +1,7 @@
+"""
+From Nppd
+Compute depth from position and camera_position
+"""
 import numpy as np
 from tqdm import tqdm
 import os
