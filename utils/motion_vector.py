@@ -49,6 +49,7 @@ def check_motion_vector(result, next_ref):
     """
     pass
 
+
 if __name__ == "__main__":
     # 加载motion vector
     motion_vector_path = '/data/hjy/realtimeds_raw/frame0000/540/motion_vector.exr'
@@ -64,3 +65,5 @@ if __name__ == "__main__":
     result, grid = warp(ref, motion_vector)
     next_ref = None
     check_motion_vector(result, next_ref)
+    # 保存result
+    # save_result(result, result_path)
