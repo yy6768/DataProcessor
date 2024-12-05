@@ -9,8 +9,7 @@ import OpenEXR
 import Imath
 import zarr
 
-# log depth
-def depth(w_position, pos):
+def compute_depth(w_position, pos):
     """Computes per-sample compressed depth (disparity-ish)
 
     Args:
@@ -25,7 +24,7 @@ def depth(w_position, pos):
     return d
 
 
-def ComputeDepth(root_dir):
+def compute_depth_all(root_dir):
     for scene in tqdm(os.listdir(root_dir), desc = f"Processing scenes in {root_dir}"):
         scene_path = os.path.join(root_dir, scene)
         for frame in tqdm(os.listdir(scene_path), desc = f"Processing frames in {scene}"):
@@ -48,7 +47,7 @@ def ComputeDepth(root_dir):
             # print('\n')
             # print(f"position: {position.shape}")
             # print(f"camera_position: {camera_position.shape}")
-            depth_data = depth(position, camera_position)
+            depth_data = compute_depth(position, camera_position)
             # print(f"depth: {depth_data.shape}")
             
             # output exr file
@@ -75,5 +74,6 @@ def ComputeDepth(root_dir):
             
             exr_file.writePixels({"R": R, "G": G, "B": B})
             exr_file.close()
-            
-ComputeDepth("/data/hjy/exrset_test/unzip_file")
+
+if __name__ == "__main__":
+    compute_depth_all("/data/hjy/exrset_test/unzip_file")
