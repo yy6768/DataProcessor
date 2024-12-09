@@ -14,8 +14,8 @@ def compute_motion_vector(motion_vector):
     现在的motion vector H, W, 2, 那么你需要归一化到(-1, 1) 
     TODO: 比如说1080, 1920的画布,现在的某个像素的值是(540, 960), 归一化到(540 / 1080, 960 / 1920)
     """
-    motion_vector[:,:, 0] /= 1080
-    motion_vector[:,:, 1] /= 1920
+    motion_vector[:, 0, :, :] /= 1080
+    motion_vector[:, 1, :, :] /= 1920
     return motion_vector
 
 def backproject_pixel_centers(motion, as_grid = False):
@@ -43,8 +43,7 @@ def backproject_pixel_centers(motion, as_grid = False):
         indexing='ij'
     ))
 
-    pixel_pos = pixel_grid - motion
-
+    pixel_pos = pixel_grid + motion
     if as_grid:
         # as needed for grid_sample, with align_corners = False
         pixel_pos_xy = torch.permute(torch.flip(pixel_pos, (1,)), (0, 2, 3, 1)) + 0.5
