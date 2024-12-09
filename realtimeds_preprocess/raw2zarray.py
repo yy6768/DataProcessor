@@ -17,7 +17,7 @@ def load_images_from_folder(folder, pattern='noisy'):
     return np.stack(images, axis=0) if images else None
 
 def create_zarr_dataset(raw_path, zarr_path):
-    # 定义数据结构
+    # TODO: 添加配置类
     data_structure = {
         '540': {
             'noisy': {'shape': (8, 3, 540, 960, 8)},  # B,C,H,W,S
@@ -57,7 +57,7 @@ def create_zarr_dataset(raw_path, zarr_path):
             # 处理该分辨率下的所有数据类型
             for data_type, config in data_structure[resolution].items():
                 try:
-                    if data_type == 'noisy':
+                    if data_type == 'noisy': # TODO: specular, diffuse 也是
                         # 特殊处理noisy数据
                         data = load_images_from_folder(res_path, 'noisy')
                         if data is not None:

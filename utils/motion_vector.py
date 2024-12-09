@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 import OpenEXR
 import Imath
-import imageio
 import pyexr
 import skimage.metrics
 from skimage.metrics import structural_similarity as ssim
@@ -17,49 +16,56 @@ def compute_motion_vector(motion_vector):
     """
     motion_vector[:,:, 0] /= 1080
     motion_vector[:,:, 1] /= 1920
+    return motion_vector
 
-    pass
+def backproject_pixel_centers(motion, as_grid = False):
+    """Decompresses per-sample radiance from RGBE compressed data
 
+    Args:
+        motion (tensor, N2HW): Per-sample screen-space motion vectors (in pixels) 
+            see `noisebase.projective.motion_vectors`
+        crop_offset (tensor, size (2)): offset of random crop (window) from top left corner of camera frame (in pixels)
+        prev_crop_offset (tensor, size (2)): offset of random crop (window) in previous frame
+        as_grid (bool): torch.grid_sample, with align_corners = False format
+
+    Returns:
+        pixel_position (tensor, N2HW): ij indexed pixel coordinates OR
+        pixel_position (tensor, NHW2): xy WH position (-1, 1) IF as_grid
+    """
+    height = motion.shape[2]
+    width = motion.shape[3]
+    dtype = motion.dtype
+    device = motion.device
+
+    pixel_grid = torch.stack(torch.meshgrid(
+        torch.arange(0, height, dtype=dtype, device=device),
+        torch.arange(0, width, dtype=dtype, device=device),
+        indexing='ij'
+    ))
+
+    pixel_pos = pixel_grid - motion
+
+    if as_grid:
+        # as needed for grid_sample, with align_corners = False
+        pixel_pos_xy = torch.permute(torch.flip(pixel_pos, (1,)), (0, 2, 3, 1)) + 0.5
+        image_pos = pixel_pos_xy / torch.tensor([width, height], device=device)
+        return image_pos * 2 - 1
+    else:
+        return pixel_pos
 
 def warp(img, motion_vector):
     """
     Warp image using motion vector
     """
     _, _, height, width = img.shape
-    device = img.device
-    motion_vector = torch.tensor(motion_vector, device=device)
-
-    # 创建基础网格
-    grid_y, grid_x = torch.meshgrid(
-        torch.arange(height, device=img.device),
-        torch.arange(width, device=img.device),
-        indexing="ij",
-    )
-    # 应用运动向量
-    grid_x = grid_x + motion_vector[:, :, 1] * width
-    grid_y = grid_y + motion_vector[:, :, 0] * height
-
-    # 归一化网格坐标到 [-1, 1] 范围
-    grid_x = 2.0 * grid_x / (width - 1) - 1.0
-    grid_y = 2.0 * grid_y / (height - 1) - 1.0
-
-    # 堆叠网格坐标
-    grid = torch.stack((grid_x, grid_y), dim=2)
-    grid = grid.unsqueeze(0)
-    # TODO Check the function == cv.remap（暂时未解决）
-
-    '''map_x = grid_x.cpu().numpy().astype(np.float32)
-    map_y = grid_y.cpu().numpy().astype(np.float32)
-    # 使用 cv2.remap 进行图像重映射
-    result = cv2.remap(img.cpu().numpy(), map_x, map_y, interpolation=cv2.INTER_LINEAR)'''
-
+    grid = backproject_pixel_centers(motion_vector, as_grid=True)
 
     result = F.grid_sample(
         img,
         grid,
         mode="bilinear",
         padding_mode="zeros",
-        align_corners=True,
+        align_corners=False,
     )
     return result, grid
 
@@ -88,21 +94,9 @@ def check_motion_vector(result, next_ref): #计算了result和next_ref的SSIM和
     print(ssim_value,psnr)
     pass
 
-def load_motion_vector(motion_vector_path):
+def load_motion_vector(motion_vector_path, device='cpu'):
     # 打开 EXR 文件
     exr = OpenEXR.InputFile(motion_vector_path)
-
-    '''channel_names = exr.header()['channels'].keys()
-    
-    # 查看每个通道的数据类型
-    for channel_name in channel_names:
-        pixel_type = exr.header()['channels'][channel_name].type
-        if pixel_type == Imath.PixelType(Imath.PixelType.FLOAT):
-            print(f"Channel '{channel_name}' is of type FLOAT32.")
-        elif pixel_type == Imath.PixelType(Imath.PixelType.HALF):
-            print(f"Channel '{channel_name}' is of type FLOAT16.")
-        else:
-            print(f"Channel '{channel_name}' is of unknown type: {pixel_type}")'''
 
     # 获取图像尺寸
     dw = exr.header()['dataWindow']
@@ -110,17 +104,18 @@ def load_motion_vector(motion_vector_path):
     height = dw.max.y - dw.min.y + 1
 
     # 读取 R 和 G 通道
-    HALF = Imath.PixelType(Imath.PixelType.HALF)
-    r_str = exr.channel('R', HALF)  # 获取 R 通道数据 (motion vector x)
-    g_str = exr.channel('G', HALF)  # 获取 G 通道数据 (motion vector y)
+    channels = exr.header()['channels']
+    r_str = exr.channel('R', channels['R'].type)  # 获取 R 通道数据 (motion vector x)
+    g_str = exr.channel('G', channels['G'].type)  # 获取 G 通道数据 (motion vector y)
 
     # 将字符串数据转换为 NumPy 数组
-    r_array = np.frombuffer(r_str, dtype=np.float16).reshape((height, width))
-    g_array = np.frombuffer(g_str, dtype=np.float16).reshape((height, width))
+    rgb_type = np.float16 if channels['R'].type == Imath.PixelType(Imath.PixelType.HALF) else np.float32
+    r_array = np.frombuffer(r_str, dtype=rgb_type).reshape((height, width))
+    g_array = np.frombuffer(g_str, dtype=rgb_type).reshape((height, width))
 
     # 堆叠成 (H, W, 2) 的 shape
     motion_vector = np.stack((g_array, r_array), axis=-1)  # y (G) 在前，x (R) 在后
-
+    motion_vector = torch.tensor(motion_vector).permute(2, 0, 1).unsqueeze(0).to(device)
     return motion_vector
 
 def load_reference(ref_path, device='cpu'):
@@ -133,23 +128,24 @@ def load_reference(ref_path, device='cpu'):
     height = dw.max.y - dw.min.y + 1
 
     # 读取 R, G, B, A 通道
-    HALF = Imath.PixelType(Imath.PixelType.HALF)
-    r_str = exr.channel('R', HALF) 
-    g_str = exr.channel('G', HALF)
-    b_str = exr.channel('B', HALF) 
-    a_str = exr.channel('A', HALF)
+    channels = exr.header()['channels']
+    r_str = exr.channel('R', channels['R'].type) 
+    g_str = exr.channel('G', channels['G'].type)
+    b_str = exr.channel('B', channels['B'].type) 
+    a_str = exr.channel('A', channels['A'].type)
 
     # 将字节数据转换为 NumPy 数组
-    r_array = np.frombuffer(r_str, dtype=np.float16).reshape((height, width))
-    g_array = np.frombuffer(g_str, dtype=np.float16).reshape((height, width))
-    b_array = np.frombuffer(b_str, dtype=np.float16).reshape((height, width))
-    a_array = np.frombuffer(a_str, dtype=np.float16).reshape((height, width))
+    rgb_type = np.float16 if channels['R'].type == Imath.PixelType(Imath.PixelType.HALF) else np.float32
+    r_array = np.frombuffer(r_str, dtype=rgb_type).reshape((height, width))
+    g_array = np.frombuffer(g_str, dtype=rgb_type).reshape((height, width))
+    b_array = np.frombuffer(b_str, dtype=rgb_type).reshape((height, width))
+    a_array = np.frombuffer(a_str, dtype=rgb_type).reshape((height, width))
 
     # 将每个通道堆叠成一个 (H, W, C) 数组
     img_array = np.stack((r_array, g_array, b_array, a_array), axis=-1)
 
     # 转换为 PyTorch tensor，并增加一个 batch 维度 (1, C, H, W)
-    img_tensor = torch.tensor(img_array).permute(2, 0, 1).unsqueeze(0).to(device).half()
+    img_tensor = torch.tensor(img_array).permute(2, 0, 1).unsqueeze(0).to(device)
 
     return img_tensor
 
@@ -161,24 +157,28 @@ def save_result(result, result_path):
 
 if __name__ == "__main__":
     # 加载motion vector
-    motion_vector_path = 'g:\\RealtimeDS\\data\\BistroExterior\\frame0001\\1080\\motion.exr'
-    #motion_vector_path = '/data/hjy/realtimeds_raw/frame0000/1080/motion.exr'
-    motion_vector = load_motion_vector(motion_vector_path)
+    # motion_vector_path = 'g:\\RealtimeDS\\data\\BistroExterior\\frame0001\\1080\\motion.exr'
+    motion_vector_path = '/data/hjy/realtimeds_raw/BistroExterior/frame0002/1080/motion.exr'
+    motion_vector = load_motion_vector(motion_vector_path, device='cuda')
     #motion_vector = None
     # 处理motion vector
-    compute_motion_vector(motion_vector)
+    motion_vector = compute_motion_vector(motion_vector)
     # 检查motion vector
     # 加载reference
-    ref_path = 'g:\\RealtimeDS\\data\\BistroExterior\\frame0001\\1080\\reference.exr'
-    #ref_path = '/data/hjy/realtimeds_raw/frame0000/1080/reference.exr'
-    ref = load_reference(ref_path,device='cuda')
+    # ref_path = 'g:\\RealtimeDS\\data\\BistroExterior\\frame0001\\1080\\reference.exr'
+    ref_path = '/data/hjy/realtimeds_raw/BistroExterior/frame0001/1080/reference.exr'
+    ref = load_reference(ref_path, device='cuda')
     #ref = None
     result, grid = warp(ref, motion_vector)
     #print(result.shape)
-    next_ref_path = 'g:\\RealtimeDS\\data\\BistroExterior\\frame0002\\1080\\reference.exr'
-    #next_ref_path = '/data/hjy/realtimeds_raw/frame0001/1080/reference.exr'
-    next_ref = load_reference(next_ref_path,device='cuda')
+    # next_ref_path = 'g:\\RealtimeDS\\data\\BistroExterior\\frame0002\\1080\\reference.exr'
+    next_ref_path = '/data/hjy/realtimeds_raw/BistroExterior/frame0002/1080/reference.exr'
+    next_ref = load_reference(next_ref_path, device='cuda')
     #check_motion_vector(result, next_ref)
     # 保存result
-    result_path = 'g:\\RealtimeDS\\data\\BistroExterior\\frame0001\\1080\\result.exr'
+    result_path = 'result.exr'
+    next_ref_path = 'next_ref.exr'
     save_result(result, result_path)
+    save_result(next_ref, next_ref_path)
+    save_result(motion_vector, 'motion_vector.exr')
+
