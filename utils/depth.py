@@ -3,7 +3,7 @@ depth utils
 """
 import numpy as np
 import os
-
+import sys
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 import cv2 as cv
 
@@ -38,12 +38,12 @@ def log_depth(_depth):
     try:
         # 将depth数据进行切片并处理
         _depth_data = _depth[:, :, 2]
-        _depth_data = np.log(1 / _depth_data + 1)
+        _depth_data = np.log(1 / (_depth_data+1) + 1)
         _depth[:, :, 2] = _depth_data
         return _depth
 
     except Exception as _e:
-        print(f"An error occurred while loading the depth image: {_e}")
+        print(f"An error occurred while log the depth image: {_e}")
         return None
 
 
@@ -56,14 +56,14 @@ def prepro_depth_from_file(_depth_path):
     try:
         # 加载depth
         _depth_data = load_depth(_depth_path)
-        # depth = log (1 / depth + 1)
+        # depth = log (1 / (depth+1) + 1)
         _log_depth_data = log_depth(_depth_data)
         # 保存处理后的depth (新地址)
         _log_depth_path = _depth_path.replace('.exr', '_log.exr')
         # 当确认处理后的depth没有问题后，在每个depth的路径下创建一个新文件'log_depth.exr'
         cv.imwrite(_log_depth_path, _log_depth_data)
     except Exception as _e:
-        print(f"An error occurred while loading the depth image: {_e}")
+        print(f"An error occurred while process file: {_e}")
 
 
 def prepro_depth_from_dir(_root_dir):
@@ -77,9 +77,26 @@ def prepro_depth_from_dir(_root_dir):
             if file == "depth.exr":
                 _depth_path = os.path.join(subdir, file)
                 prepro_depth_from_file(_depth_path)
+            elif file == "montion.exr":
+                _montion_path = os.path.join(subdir, file)
+                _motion_path = os.path.join(subdir, "motion.exr")
+                os.rename(_montion_path, _motion_path)
+
 
 
 
 if __name__ == "__main__":
-    depth_path = 'Bistro'
-    prepro_depth_from_dir(depth_path)
+    """
+    做成了脚本形式
+    使用如下形式即可工作
+    python depth.py <argument1> <argument2>
+    """
+    if len(sys.argv) < 2:
+        print("Usage: python depth.py <argument1> <argument2> ...")
+        sys.exit(1)  # Exit with an error code
+    for depth_path in sys.argv[1:]:
+        try:
+            prepro_depth_from_dir(depth_path)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            continue
