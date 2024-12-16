@@ -4,21 +4,18 @@ import torch.nn.functional as F
 import OpenEXR
 import Imath
 import pyexr
+import configparser
 import skimage.metrics
 from skimage.metrics import structural_similarity as ssim
 
-# 设置路径
-BASE_DIR = "G:\\Realtimeds\\data\\BistroExterior\\"  
-t = 2                                       #处理第t帧
-FRAME_t = "frame" + f"{t:04}"
-FRAME_f = "frame" + f"{(t-1):04}"
-IS_USE_1080 = True                          #对1080p的图片进行warp则设置为True，对540p则设置为False
-p = "1080\\" if IS_USE_1080 else "540\\"
-
-motion_vector_path = BASE_DIR + FRAME_t + "\\" + p + "motion.exr"        #第t帧的motionvector
-img_path = BASE_DIR + FRAME_f + "\\" + p + "reference.exr"               #需要warp的图片（第t-1帧） 
-ref_path = BASE_DIR + FRAME_t + "\\" + p + "reference.exr"               #第t帧的参考               
-result_path = BASE_DIR + FRAME_t + "\\" + p + "result.exr"               #warp后的结果
+config = configparser.ConfigParser()
+with open('motion_vector_config.ini', 'r', encoding='utf-8') as f:
+    config.read_file(f)
+BASE_DIR = config['DIR']['BASE_DIR']
+IS_USE_1080 = config.getboolean('DIR', 'IS_USE_1080')
+name = config['DIR']['name']
+BEGIN_FRAME = config.getint('frame', 'BEGIN_FRAME')
+END_FRAME = config.getint('frame', 'END_FRAME')
 
 def warp(img, motion_vector):
     """
@@ -139,11 +136,20 @@ def save_result(result, result_path):
     pyexr.write(result_path, rgb_result)
 
 if __name__ == "__main__":
-    # 加载motion vector
-    motion_vector = load_motion_vector(motion_vector_path)
-    # 加载reference、img
-    img = load_reference(img_path,device='cuda')
-    result, grid = warp(img, motion_vector)
-    ref = load_reference(ref_path,device='cuda')
-    # 保存result
-    save_result(result, result_path)
+    for t in range(BEGIN_FRAME, END_FRAME+1):
+        FRAME_t = "frame" + f"{t:04}"
+        FRAME_f = "frame" + f"{(t-1):04}" 
+        p = "1080\\" if IS_USE_1080 else "540\\"
+        motion_vector_path = BASE_DIR + "\\" +  FRAME_t + "\\" + p + "motion.exr"        #第t帧的motionvector
+        img_path = BASE_DIR + "\\" + FRAME_f + "\\" + p + name + ".exr"               #需要warp的图片（第t-1帧） 
+        ref_path = BASE_DIR + "\\" + FRAME_t + "\\" + p + name + ".exr"               #第t帧的参考               
+        result_path = BASE_DIR + "\\" + FRAME_t + "\\" + p + "result.exr"               #warp后的结果
+        print(t )
+        # 加载motion vector
+        motion_vector = load_motion_vector(motion_vector_path)
+        # 加载reference、img
+        img = load_reference(img_path,device='cuda')
+        result, grid = warp(img, motion_vector)
+        ref = load_reference(ref_path,device='cuda')
+        # 保存result
+        save_result(result, result_path)
