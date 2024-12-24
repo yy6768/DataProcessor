@@ -4,18 +4,17 @@ import torch.nn.functional as F
 import OpenEXR
 import Imath
 import pyexr
-import configparser
+import yaml
 import skimage.metrics
 from skimage.metrics import structural_similarity as ssim
 
-config = configparser.ConfigParser()
-with open('motion_vector_config.ini', 'r', encoding='utf-8') as f:
-    config.read_file(f)
-BASE_DIR = config['DIR']['BASE_DIR']
-IS_USE_1080 = config.getboolean('DIR', 'IS_USE_1080')
-name = config['DIR']['name']
-BEGIN_FRAME = config.getint('frame', 'BEGIN_FRAME')
-END_FRAME = config.getint('frame', 'END_FRAME')
+with open('motion_vector_config.yaml', 'r', encoding='utf-8') as file:
+    config = yaml.safe_load(file)
+BASE_DIR = config['BASE_DIR']
+IS_USE_1080 = config['IS_USE_1080']
+name = config['name']
+BEGIN_FRAME = config['frame']['BEGIN_FRAME']
+END_FRAME = config['frame']['END_FRAME']
 
 def warp(img, motion_vector):
     """
@@ -144,7 +143,6 @@ if __name__ == "__main__":
         img_path = BASE_DIR + "\\" + FRAME_f + "\\" + p + name + ".exr"               #需要warp的图片（第t-1帧） 
         ref_path = BASE_DIR + "\\" + FRAME_t + "\\" + p + name + ".exr"               #第t帧的参考               
         result_path = BASE_DIR + "\\" + FRAME_t + "\\" + p + "result.exr"               #warp后的结果
-        print(t )
         # 加载motion vector
         motion_vector = load_motion_vector(motion_vector_path)
         # 加载reference、img
