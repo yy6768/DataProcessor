@@ -3,8 +3,10 @@ import zarr
 import numpy as np
 import imageio
 from glob import glob
+import argparse
 
-def create_frame_zipstore(frame_idx, output_path,folder_1080,folder_540):
+
+def create_frame_zipstore(frame_idx, output_path, folder_1080, folder_540):
     """创建单帧的 ZipStore"""
     zip_path = f"{output_path}/frame{frame_idx:04d}.zip"
     store = zarr.ZipStore(zip_path, mode='w')
@@ -15,7 +17,7 @@ def create_frame_zipstore(frame_idx, output_path,folder_1080,folder_540):
         root.create_group('540')
         # 带采样维度的数据 [B,C,H,W,S]
         sample_shape = (1, 3, 540, 960, 8)  # 8个采样
-        base_shape = (1,3,540,960)
+        base_shape = (1, 3, 540, 960)
 
         datasets = ['color','diffuse','specular']
         for i, dataset_name in enumerate(datasets):
@@ -59,19 +61,25 @@ def create_frame_zipstore(frame_idx, output_path,folder_1080,folder_540):
     finally:
         store.close()
 # 定义存储路径
-base_folder = r"D:\Falcor\res\Sponza"  
-zarr_output_folder = "zipped_data"  
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='将图像数据转换为Zarr格式')
+    parser.add_argument('--base_folder', type=str, default=r"D:\Falcor\res\Sponza",
+                        help='输入数据的基础文件夹路径')
+    parser.add_argument('--output_folder', type=str, default="zipped_data",
+                        help='Zarr输出文件夹路径')
+    parser.add_argument('--start_frame', type=int, default=340,
+                        help='开始处理的帧序号')
+    
+    args = parser.parse_args()
+    
+    # 遍历所有 framexxxx 文件夹
+    frame_folders = glob(os.path.join(args.base_folder, "frame*"))
+    i = 0
+    for frame_folder in frame_folders:
+        folder_1080 = os.path.join(frame_folder, "1080")
+        folder_540 = os.path.join(frame_folder, "540")
+        if i > args.start_frame:
+            create_frame_zipstore(i, args.output_folder, folder_1080, folder_540)
+        i += 1
 
-# 遍历所有 framexxxx 文件夹
-frame_folders = glob(os.path.join(base_folder, "frame*"))
-i = 0
-for frame_folder in frame_folders:
-    # 获取 framexxxx 中的子文件夹 1080 和 540
-    folder_1080 = os.path.join(frame_folder, "1080")
-    folder_540 = os.path.join(frame_folder, "540")
-    start_frame =  340
-    if i > start_frame:
-        create_frame_zipstore(i,zarr_output_folder,folder_1080,folder_540)
-    i+=1
-
-print("所有数据已成功转化为 Zarr 格式")
+    print("Transform finished")
