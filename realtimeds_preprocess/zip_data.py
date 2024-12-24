@@ -1,7 +1,7 @@
 import os
 import zarr
 import numpy as np
-import imageio
+import imageio.v2 as imageio
 from glob import glob
 import argparse
 
@@ -32,7 +32,7 @@ def create_frame_zipstore(frame_idx, output_path, folder_1080, folder_540):
                                 dtype='f4',
                                 data=data)        
         # 其他的4维度数据
-        datasets = ['albedo', 'depth', 'motion', 'normal', 'reference', 'roughness']
+        datasets = ['albedo', 'depth', 'motion', 'normal', 'roughness']
         for i, dataset_name in enumerate(datasets):
             data = np.zeros(base_shape, dtype=np.float32)
             exr_path = os.path.join(folder_540, f'{dataset_name}.exr')
@@ -60,18 +60,8 @@ def create_frame_zipstore(frame_idx, output_path, folder_1080, folder_540):
                                 data=data)        
     finally:
         store.close()
-# 定义存储路径
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='将图像数据转换为Zarr格式')
-    parser.add_argument('--base_folder', type=str, default=r"D:\Falcor\res\Sponza",
-                        help='输入数据的基础文件夹路径')
-    parser.add_argument('--output_folder', type=str, default="zipped_data",
-                        help='Zarr输出文件夹路径')
-    parser.add_argument('--start_frame', type=int, default=340,
-                        help='开始处理的帧序号')
-    
-    args = parser.parse_args()
-    
+
+def main(args):
     # 遍历所有 framexxxx 文件夹
     frame_folders = glob(os.path.join(args.base_folder, "frame*"))
     i = 0
@@ -81,5 +71,19 @@ if __name__ == "__main__":
         if i > args.start_frame:
             create_frame_zipstore(i, args.output_folder, folder_1080, folder_540)
         i += 1
+    
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Zarr array data')
+    parser.add_argument('--base_folder', type=str, default="/data/hjy/realtimeds_raw/BistroExterior",
+                        help='Input data folder')
+    parser.add_argument('--output_folder', type=str, default="../test_realtimeDS_data",
+                        help='Zarr output folder')
+    parser.add_argument('--start_frame', type=int, default=0,
+                        help='Start frame number')
+    
+    args = parser.parse_args()
+    
+    main(args)
 
     print("Transform finished")
