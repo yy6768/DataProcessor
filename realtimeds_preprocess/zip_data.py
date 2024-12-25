@@ -28,7 +28,7 @@ def create_frame_zipstore(frame_idx, output_path, folder_1080, folder_540):
                 data[0, :, :, :, j] = exr_data
             root.create_dataset(f'540/{dataset_name}', 
                                 shape=sample_shape,
-                                chunks=(1, 3, 128, 128,8),
+                                chunks=(1, 3, 128, 128, 8),
                                 dtype='f4',
                                 data=data)        
         # 其他的4维度数据
@@ -64,20 +64,18 @@ def create_frame_zipstore(frame_idx, output_path, folder_1080, folder_540):
 def main(args):
     # 遍历所有 framexxxx 文件夹
     frame_folders = glob(os.path.join(args.base_folder, "frame*"))
-    i = 0
-    for frame_folder in frame_folders:
+    frame_folders = sorted(frame_folders)[args.start_frame:]
+    for i, frame_folder in enumerate(frame_folders, start=args.start_frame):
         folder_1080 = os.path.join(frame_folder, "1080")
         folder_540 = os.path.join(frame_folder, "540")
-        if i > args.start_frame:
-            create_frame_zipstore(i, args.output_folder, folder_1080, folder_540)
-        i += 1
+        create_frame_zipstore(i, args.output_folder, folder_1080, folder_540)
     
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Zarr array data')
     parser.add_argument('--base_folder', type=str, default="/data/hjy/realtimeds_raw/BistroExterior",
                         help='Input data folder')
-    parser.add_argument('--output_folder', type=str, default="../test_realtimeDS_data",
+    parser.add_argument('--output_folder', type=str, default="../test_realtimeDS_data/BistroExterior",
                         help='Zarr output folder')
     parser.add_argument('--start_frame', type=int, default=0,
                         help='Start frame number')
