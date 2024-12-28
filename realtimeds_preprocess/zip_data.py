@@ -34,30 +34,62 @@ def create_frame_zipstore(frame_idx, output_path, folder_1080, folder_540):
         # 其他的4维度数据
         datasets = ['albedo', 'depth', 'motion', 'normal', 'roughness']
         for i, dataset_name in enumerate(datasets):
-            data = np.zeros(base_shape, dtype=np.float32)
+            if dataset_name == 'depth':
+                shape = (1, 1, 540, 960)
+                chunks = (1, 1, 128, 128)
+            elif dataset_name == 'motion':
+                shape = (1, 2, 540, 960)
+                chunks = (1, 2, 128, 128)
+            else:
+                shape = base_shape
+                chunks = (1, 3, 128, 128)
+                
+            data = np.zeros(shape, dtype=np.float32)
             exr_path = os.path.join(folder_540, f'{dataset_name}.exr')
-            exr_data = np.transpose(np.array(imageio.imread(exr_path, format='EXR'))[..., :3].astype(np.float32), (2, 0, 1))
-            data[0, :, :, :] = exr_data
+            exr_data = np.array(imageio.imread(exr_path, format='EXR')).astype(np.float32)
+            if dataset_name == 'depth':
+                data[0, 0] = exr_data[..., 0]
+            elif dataset_name == 'motion':
+                data[0, :2] = np.transpose(exr_data[..., :2], (2, 0, 1))
+            else:
+                data[0] = np.transpose(exr_data[..., :3], (2, 0, 1))
+            
             root.create_dataset(f'540/{dataset_name}', 
-                                shape=base_shape,
-                                chunks=(1, 3, 128, 128),
-                                dtype='f4',
-                                data=data)
-        
+                              shape=shape,
+                              chunks=chunks,
+                              dtype='f4',
+                              data=data)
+
         # 1080p 分辨率数据
         root.create_group('1080')
         hd_shape = (1, 3, 1080, 1920)
         datasets = ['albedo', 'depth', 'motion', 'normal', 'reference', 'roughness']
         for i, dataset_name in enumerate(datasets):
-            data = np.zeros(hd_shape, dtype=np.float32)
+            if dataset_name == 'depth':
+                shape = (1, 1, 1080, 1920)
+                chunks = (1, 1, 256, 256)
+            elif dataset_name == 'motion':
+                shape = (1, 2, 1080, 1920)
+                chunks = (1, 2, 256, 256)
+            else:
+                shape = hd_shape
+                chunks = (1, 3, 256, 256)
+                
+            data = np.zeros(shape, dtype=np.float32)
             exr_path = os.path.join(folder_1080, f'{dataset_name}.exr')
-            exr_data = np.transpose(np.array(imageio.imread(exr_path, format='EXR'))[..., :3].astype(np.float32), (2, 0, 1))
-            data[0, :, :, :] = exr_data
+            exr_data = np.array(imageio.imread(exr_path, format='EXR')).astype(np.float32)
+            if dataset_name == 'depth':
+                data[0, 0] = exr_data[..., 0]
+            elif dataset_name == 'motion':
+                data[0, :2] = np.transpose(exr_data[..., :2], (2, 0, 1))
+            else:
+                data[0] = np.transpose(exr_data[..., :3], (2, 0, 1))
+            
             root.create_dataset(f'1080/{dataset_name}', 
-                                shape=hd_shape,
-                                chunks=(1, 3, 256, 256),
-                                dtype='f4',
-                                data=data)        
+                              shape=shape,
+                              chunks=chunks,
+                              dtype='f4',
+                              data=data)        
     finally:
         store.close()
 
