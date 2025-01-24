@@ -97,6 +97,8 @@ def main(args):
     # 遍历所有 framexxxx 文件夹
     frame_folders = glob(os.path.join(args.base_folder, "frame*"))
     frame_folders = sorted(frame_folders)[args.start_frame:]
+    
+    os.makedirs(args.output_folder, exist_ok=True)
     for i, frame_folder in enumerate(frame_folders, start=args.start_frame):
         folder_1080 = os.path.join(frame_folder, "1080")
         folder_540 = os.path.join(frame_folder, "540")
@@ -105,11 +107,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Zarr array data')
-    parser.add_argument('--base_folder', type=str, default="/data/hjy/realtimeds_raw/BistroExterior",
+    parser.add_argument('--base_folder', type=str, default="/data/hjy/realtimeds_raw/Sponza",
                         help='Input data folder')
-    parser.add_argument('--output_folder', type=str, default="../test_realtimeDS_data/BistroExterior",
+    parser.add_argument('--output_folder', type=str, default="../test_realtimeDS_data/Sponza",
                         help='Zarr output folder')
-    parser.add_argument('--start_frame', type=int, default=0,
+    parser.add_argument('--start_frame', type=int, default=940,
                         help='Start frame number')
     
     args = parser.parse_args()
