@@ -82,14 +82,15 @@ def main(args):
     # 遍历所有 framexxxx 文件夹
     frame_folders = glob(os.path.join(args.base_folder, "frame*"))
     frame_folders = sorted(frame_folders)[args.start_frame:]
+    os.makedirs(args.output_folder, exist_ok=True)
     for i, frame_folder in enumerate(frame_folders, start=args.start_frame):
         folder_1080 = os.path.join(frame_folder, "1080")
         folder_540 = os.path.join(frame_folder, "540")
         create_frame_npzstore(i, args.output_folder, folder_1080, folder_540)
 
 
-base_folder = "D:/RealtimeDS/data/BistroInterior"
-output_folder = "D:/RealtimeDS/npz_data/BistroInterior"
+base_folder = "/data/hjy/realtimeds_raw/BistroInterior"
+output_folder = "/data/yy/realtimeDS_npz/BistroInterior"
 start_frame = 0
 
 if __name__ == "__main__":
