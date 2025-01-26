@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from glob import glob
 import argparse
+import imageio.v3 as iio
 
 
 def create_frame_npzstore(frame_idx, output_path, folder_1080, folder_540):
@@ -23,9 +24,9 @@ def create_frame_npzstore(frame_idx, output_path, folder_1080, folder_540):
             data = np.zeros(sample_shape, dtype=np.float32)
             for j in range(8):
                 exr_path = os.path.join(folder_540, f'{dataset_name}{i}.exr')
-                exr_data = np.transpose(
-                    np.array(cv2.imread(exr_path, cv2.IMREAD_UNCHANGED))[..., :3].astype(np.float32),
-                    (2, 0, 1))
+                # imageio 直接读取为RGB顺序
+                exr_data = iio.imread(exr_path)
+                exr_data = np.transpose(exr_data.astype(np.float32), (2, 0, 1))
                 data[0, :, :, :, j] = exr_data
             data_dict['540'][dataset_name] = data
 
@@ -41,7 +42,8 @@ def create_frame_npzstore(frame_idx, output_path, folder_1080, folder_540):
 
             data = np.zeros(shape, dtype=np.float32)
             exr_path = os.path.join(folder_540, f'{dataset_name}.exr')
-            exr_data = np.array(cv2.imread(exr_path, cv2.IMREAD_UNCHANGED)).astype(np.float32)
+            exr_data = iio.imread(exr_path).astype(np.float32)
+            
             if dataset_name == 'depth':
                 data[0, 0] = exr_data[..., 0]
             elif dataset_name == 'motion':
@@ -65,7 +67,8 @@ def create_frame_npzstore(frame_idx, output_path, folder_1080, folder_540):
 
             data = np.zeros(shape, dtype=np.float32)
             exr_path = os.path.join(folder_1080, f'{dataset_name}.exr')
-            exr_data = np.array(cv2.imread(exr_path, cv2.IMREAD_UNCHANGED)).astype(np.float32)
+            exr_data = iio.imread(exr_path).astype(np.float32)
+            
             if dataset_name == 'depth':
                 data[0, 0] = exr_data[..., 0]
             elif dataset_name == 'motion':
