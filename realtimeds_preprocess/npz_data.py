@@ -25,8 +25,8 @@ def create_frame_npzstore(frame_idx, output_path, folder_1080, folder_540):
             for j in range(8):
                 exr_path = os.path.join(folder_540, f'{dataset_name}{i}.exr')
                 # imageio 直接读取为RGB顺序
-                exr_data = iio.imread(exr_path)
-                exr_data = np.transpose(exr_data.astype(np.float32), (2, 0, 1))
+                exr_data = iio.imread(exr_path)[..., :3].astype(np.float32)
+                exr_data = np.transpose(exr_data, (2, 0, 1))
                 data[0, :, :, :, j] = exr_data
             data_dict['540'][dataset_name] = data
 
@@ -90,10 +90,11 @@ def main(args):
         folder_1080 = os.path.join(frame_folder, "1080")
         folder_540 = os.path.join(frame_folder, "540")
         create_frame_npzstore(i, args.output_folder, folder_1080, folder_540)
+        print(f"Processed frame {i}")
 
 
-base_folder = "/data/hjy/realtimeds_raw/BistroInterior"
-output_folder = "/data/yy/realtimeDS_npz/BistroInterior"
+base_folder = "/data/hjy/realtimeds_raw/Sponza"
+output_folder = "/data/yy/realtimeDS_npz/Sponza"
 start_frame = 0
 
 if __name__ == "__main__":
