@@ -107,17 +107,18 @@ if __name__ == "__main__":
     """
     做成了脚本形式
     使用如下形式即可工作
-    python depth.py <argument1> <argument2>
+    python depth.py <root_dir> <crop_weight> <crop_height>
     """
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 4:
         try:
             prepro_depth_from_dir(color_path)
         except Exception as e:
             print(f"An error occurred: {e}")
     else:
-        for color_path in sys.argv[1:]:
-            try:
-                prepro_depth_from_dir(color_path)
-            except Exception as e:
-                print(f"An error occurred: {e}")
-                continue
+        color_path = sys.argv[1]
+        crop_weight = int(sys.argv[2])
+        crop_height = int(sys.argv[3])
+        try:
+            prepro_depth_from_dir(color_path)
+        except Exception as e:
+            print(f"An error occurred: {e}")
