@@ -30,7 +30,7 @@ def load_color(_color_path):
         return None
 
 
-def crop_color(_color, _color_path, crop_weight, crop_height):
+def crop_color(_color, _color_path, crop_weight, crop_height, frame):
     """
     对数据进行处理并返回处理后的矩阵
     :param crop_height: 裁剪高度
@@ -61,7 +61,7 @@ def crop_color(_color, _color_path, crop_weight, crop_height):
                 # 写入crop_offset
                 cropped_color_offset_path = os.path.join(dir_path, f'_{index:0>4d}.txt')
                 with open(cropped_color_offset_path, "w") as file:
-                    file.write(f'{col},{row}')
+                    file.write(f'{col},{row},{frame}')
                 index += 1
 
 
@@ -71,7 +71,7 @@ def crop_color(_color, _color_path, crop_weight, crop_height):
         return None
 
 
-def prepro_color_from_file(_color_path):
+def prepro_color_from_file(_color_path, frame):
     """
     从文件对depth数据进行预处理
     :param _color_path:单个文件地址
@@ -81,7 +81,7 @@ def prepro_color_from_file(_color_path):
         # 加载color
         _color_data = load_color(_color_path)
         # 对color进行裁剪
-        crop_color(_color_data, _color_path, crop_weight, crop_height)
+        crop_color(_color_data, _color_path, crop_weight, crop_height, frame)
     except Exception as _e:
         print(f"An error occurred while process file: {_e}")
 
@@ -96,7 +96,13 @@ def prepro_depth_from_dir(_root_dir):
         for file in files:
             if "color" in file:
                 _color_path = os.path.join(subdir, file)
-                prepro_color_from_file(_color_path)
+                _dirs = subdir.split("\\")
+                frame = 0
+                for i in _dirs:
+                    if "frame" in i:
+                        frame = int(i[-4:])
+                        break
+                prepro_color_from_file(_color_path, frame)
 
 
 crop_weight = 64
