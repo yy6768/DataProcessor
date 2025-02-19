@@ -1,11 +1,11 @@
 import os
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
-import cv2
 import numpy as np
 from glob import glob
 import argparse
 import imageio.v3 as iio
 
+# TODO
 
 def create_frame_npzstore(frame_idx, output_path, folder_1080, folder_540):
     """创建单帧的 NPZ 存储"""
@@ -31,7 +31,8 @@ def create_frame_npzstore(frame_idx, output_path, folder_1080, folder_540):
             data_dict['540'][dataset_name] = data
 
         # 其他的4维度数据
-        datasets = ['albedo', 'depth', 'motion', 'normal', 'roughness']
+        # datasets = ['albedo', 'depth', 'motion', 'normal', 'roughness']
+        datasets = ['albedo', 'depth', 'motion', 'normal']
         for i, dataset_name in enumerate(datasets):
             if dataset_name == 'depth':
                 shape = (1, 1, 540, 960)
@@ -56,7 +57,7 @@ def create_frame_npzstore(frame_idx, output_path, folder_1080, folder_540):
         # 1080p 分辨率数据
         data_dict['1080'] = {}
         hd_shape = (1, 3, 1080, 1920)
-        datasets = ['albedo', 'depth', 'motion', 'normal', 'reference', 'roughness']
+        datasets = ['albedo', 'depth', 'motion', 'normal', 'reference']
         for i, dataset_name in enumerate(datasets):
             if dataset_name == 'depth':
                 shape = (1, 1, 1080, 1920)
@@ -93,8 +94,8 @@ def main(args):
         print(f"Processed frame {i}")
 
 
-base_folder = "/data/hjy/realtimeds_raw/Sponza"
-output_folder = "/data/yy/realtimeDS_npz/Sponza"
+base_folder = "/data/hjy/realtimeds_raw/BistroInterior"
+output_folder = "/data/yy/realtimeDS_npz/BistroInterior"
 start_frame = 0
 
 if __name__ == "__main__":
