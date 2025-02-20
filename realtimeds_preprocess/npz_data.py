@@ -6,8 +6,14 @@ import argparse
 import imageio.v3 as iio
 
 
-def create_cropped_frame_npzstore(frame_idx, output_path, folder_1080, folder_540, offset_file):
+def create_cropped_frame_npzstore(frame_folder, output_path):
     """创建裁剪后单帧的 NPZ 存储"""
+    base_folder = os.path.dirname(frame_folder)
+    frame_idx = int(os.path.basename(frame_folder).replace('frame', ''))
+    offset_file = os.path.join(frame_folder, "offset.txt")
+    folder_1080 = os.path.join(frame_folder, "1080")
+    folder_540 = os.path.join(frame_folder, "540")
+    id_file = os.path.join(frame_folder, "frameId.txt")
     npz_path = f"{output_path}/frame{frame_idx:04d}.npz"
     data_dict = {}
 
@@ -17,17 +23,21 @@ def create_cropped_frame_npzstore(frame_idx, output_path, folder_1080, folder_54
             offset_x, offset_y = map(int, f.read().strip().split(','))
         
         # 读取原始frameId
-        frame_id_file = os.path.join(os.path.dirname(offset_file), 'frameId.txt')
-        with open(frame_id_file, 'r') as f:
+        with open(id_file, 'r') as f:
             original_frame_id = int(f.read().strip())
-            
+        if original_frame_id != 0:
+            pre_frame_folder = os.path.join(base_folder, f'frame{frame_idx - 1:04d}')
+            pre_offset_file = os.path.join(pre_frame_folder, "offset.txt")
+            with open(pre_offset_file, 'r') as f:
+                pre_offset_x, pre_offset_y = map(int, f.read().strip().split(','))
+        else:
+            pre_offset_x, pre_offset_y = offset_x, offset_y
         # 添加位置信息到数据字典
         data_dict['meta'] = {
-            'offset_x': offset_x,
-            'offset_y': offset_y,
-            'original_frame_id': original_frame_id
+            'offset': np.array([offset_x, offset_y]),
+            'frame_index': original_frame_id,
+            'pre_offset': np.array([pre_offset_x, pre_offset_y])
         }
-
         # 540p 分辨率数据
         data_dict['540'] = {}
         # 带采样维度的数据 [B,C,H,W,S]
@@ -113,11 +123,8 @@ def main(args):
         offset_file = os.path.join(frame_folder, "offset.txt")
         
         create_cropped_frame_npzstore(
-            frame_idx, 
+            frame_folder,
             args.output_folder, 
-            folder_1080, 
-            folder_540, 
-            offset_file
         )
         print(f"Processed frame {frame_idx}")
 
