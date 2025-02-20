@@ -133,7 +133,7 @@ class SequenceCropper:
 
 def main():
     # 配置参数
-    source_dir = "/data/hjy/realtimeds_raw/SponzM/"
+    source_dir = "/data/hjy/realtimeds_raw/SponzaM/"
     output_dir = "/data/hjy/realtimeds_cropped/Sponza/"
     lr_size = (128, 128)
     hr_size = (256, 256)
