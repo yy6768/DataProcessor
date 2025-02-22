@@ -4,7 +4,122 @@ import numpy as np
 from glob import glob
 import argparse
 import imageio.v3 as iio
+import OpenEXR
+import Imath
 
+
+def read_exr_data(exr_path, dataset_name):
+    """使用 OpenEXR 读取数据，返回形状为 (H, W, C)"""
+    exr_file = OpenEXR.InputFile(exr_path)
+    header = exr_file.header()
+    dw = header['dataWindow']
+    width = dw.max.x - dw.min.x + 1
+    height = dw.max.y - dw.min.y + 1
+
+    # 获取通道数据并重塑为 (height, width)
+    pt = Imath.PixelType(Imath.PixelType.FLOAT)
+    channels = ['R', 'G', 'B']
+    data = [
+        np.frombuffer(exr_file.channel(c, pt), dtype=np.float32)
+        .reshape((height, width))  # 修改reshape顺序
+        for c in channels
+    ]
+    
+    # 堆叠通道维度，得到 (H, W, C)
+    exr_data = np.stack(data, axis=-1)
+    # print(exr_data.shape)
+    # assert exr_data.shape == (height, width, 3), f"形状异常: {exr_data.shape}"
+    return exr_data
+
+def create_test_frame_npzstore(frame_folder, output_path):
+    """创建测试单帧的 NPZ 存储"""
+    frame_idx = int(os.path.basename(frame_folder).replace('frame', ''))
+    folder_1080 = os.path.join(frame_folder, "1080")
+    folder_540 = os.path.join(frame_folder, "540")
+    npz_path = f"{output_path}/frame{frame_idx:04d}.npz"
+    data_dict = {}
+
+    try:
+        offset_x, offset_y = 0, 0
+        original_frame_id = frame_idx
+        pre_offset_x, pre_offset_y = 0, 0
+        # 添加位置信息到数据字典
+        data_dict['meta'] = {
+            'offset': np.array([offset_x, offset_y], dtype=np.int32),
+            'frame_index': np.array([original_frame_id], dtype=np.int32),
+            'pre_offset': np.array([pre_offset_x, pre_offset_y], dtype=np.int32)
+        }
+        # 540p 分辨率数据
+        data_dict['540'] = {}
+        # 带采样维度的数据 [B,C,H,W,S]
+        sample_shape = (1, 3, 540, 960, 8)  # 8个采样，裁剪后的尺寸
+        base_shape = (1, 3, 540, 960)
+
+        # 处理多采样数据
+        datasets = ['color', 'diffuse', 'specular', 'RTXDI']
+        for i, dataset_name in enumerate(datasets):
+            data = np.zeros(sample_shape, dtype=np.float32)
+            for j in range(8):
+                exr_path = os.path.join(folder_540, f'{dataset_name}{i}.exr')
+                # imageio 直接读取为RGB顺序
+                exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
+                exr_data = np.transpose(exr_data, (2, 0, 1))
+                data[0, :, :, :, j] = exr_data
+            data_dict['540'][dataset_name] = data
+
+        # 处理其他4维度数据
+        datasets = ['albedo', 'depth', 'motion', 'normal']
+        for i, dataset_name in enumerate(datasets):
+            if dataset_name == 'depth':
+                shape = (1, 1, 540, 960)
+            elif dataset_name == 'motion':
+                shape = (1, 2, 540, 960)
+            else:
+                shape = base_shape
+
+            # 使用 OpenEXR 读取 EXR 文件
+            exr_path = os.path.join(folder_540, f'{dataset_name}.exr')
+            exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
+            print(f"statistic of {dataset_name}: min {np.min(exr_data)}, max {np.max(exr_data)}, mean {np.mean(exr_data)}, nan {np.isnan(exr_data).any()}")
+            data = np.zeros(shape, dtype=np.float32)
+            
+            if dataset_name == 'depth':
+                data[0, 0] = exr_data[..., 0]
+            elif dataset_name == 'motion':
+                data[0, :2] = np.transpose(exr_data[..., :2], (2, 0, 1))
+            else:
+                data[0] = np.transpose(exr_data[..., :3], (2, 0, 1))
+
+            data_dict['540'][dataset_name] = data
+
+        # 1080p 分辨率数据
+        data_dict['1080'] = {}
+        hd_shape = (1, 3, 1080, 1920)  # 裁剪后的高分辨率尺寸
+        # datasets = ['albedo', 'depth', 'motion', 'normal', 'reference']
+        datasets = ['reference']
+        for i, dataset_name in enumerate(datasets):
+            if dataset_name == 'depth':
+                shape = (1, 1, 1080, 1920)
+            elif dataset_name == 'motion':
+                shape = (1, 2, 1080, 1920)
+            else:
+                shape = hd_shape
+
+            data = np.zeros(shape, dtype=np.float32)
+            exr_path = os.path.join(folder_1080, f'{dataset_name}.exr')
+            # exr_data = iio.imread(exr_path).astype(np.float32)
+            exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
+            
+            if dataset_name == 'depth':
+                data[0, 0] = exr_data[..., 0]
+            elif dataset_name == 'motion':
+                data[0, :2] = np.transpose(exr_data[..., :2], (2, 0, 1))
+            else:
+                data[0] = np.transpose(exr_data[..., :3], (2, 0, 1))
+
+            data_dict['1080'][dataset_name] = data
+    finally:
+        np.savez_compressed(npz_path, **data_dict)
 
 def create_cropped_frame_npzstore(frame_folder, output_path):
     """创建裁剪后单帧的 NPZ 存储"""
@@ -34,9 +149,9 @@ def create_cropped_frame_npzstore(frame_folder, output_path):
             pre_offset_x, pre_offset_y = offset_x, offset_y
         # 添加位置信息到数据字典
         data_dict['meta'] = {
-            'offset': np.array([offset_x, offset_y]),
-            'frame_index': original_frame_id,
-            'pre_offset': np.array([pre_offset_x, pre_offset_y])
+            'offset': np.array([offset_x, offset_y], dtype=np.int32),
+            'frame_index': np.array([original_frame_id], dtype=np.int32),
+            'pre_offset': np.array([pre_offset_x, pre_offset_y], dtype=np.int32)
         }
         # 540p 分辨率数据
         data_dict['540'] = {}
@@ -51,7 +166,8 @@ def create_cropped_frame_npzstore(frame_folder, output_path):
             for j in range(8):
                 exr_path = os.path.join(folder_540, f'{dataset_name}{i}.exr')
                 # imageio 直接读取为RGB顺序
-                exr_data = iio.imread(exr_path)[..., :3].astype(np.float32)
+                # exr_data = iio.imread(exr_path)[..., :3].astype(np.float32)
+                exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
                 exr_data = np.transpose(exr_data, (2, 0, 1))
                 data[0, :, :, :, j] = exr_data
             data_dict['540'][dataset_name] = data
@@ -68,8 +184,8 @@ def create_cropped_frame_npzstore(frame_folder, output_path):
 
             data = np.zeros(shape, dtype=np.float32)
             exr_path = os.path.join(folder_540, f'{dataset_name}.exr')
-            exr_data = iio.imread(exr_path).astype(np.float32)
-            
+            # exr_data = iio.imread(exr_path).astype(np.float32)
+            exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
             if dataset_name == 'depth':
                 data[0, 0] = exr_data[..., 0]
             elif dataset_name == 'motion':
@@ -94,7 +210,8 @@ def create_cropped_frame_npzstore(frame_folder, output_path):
 
             data = np.zeros(shape, dtype=np.float32)
             exr_path = os.path.join(folder_1080, f'{dataset_name}.exr')
-            exr_data = iio.imread(exr_path).astype(np.float32)
+            # exr_data = iio.imread(exr_path).astype(np.float32)
+            exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
             
             if dataset_name == 'depth':
                 data[0, 0] = exr_data[..., 0]
@@ -118,19 +235,19 @@ def main(args):
         # 从文件夹名称中提取帧索引
         frame_idx = int(os.path.basename(frame_folder).replace('frame', ''))
         
-        folder_1080 = os.path.join(frame_folder, "1080")
-        folder_540 = os.path.join(frame_folder, "540")
-        offset_file = os.path.join(frame_folder, "offset.txt")
-        
         create_cropped_frame_npzstore(
             frame_folder,
             args.output_folder, 
         )
+        # create_test_frame_npzstore(
+        #     frame_folder,
+        #     args.output_folder, 
+        # )
         print(f"Processed frame {frame_idx}")
 
 
-base_folder = "/data/hjy/realtimeds_cropped/Sponza"
-output_folder = "/data/yy/realtimeDS_npz/Sponza_npz"
+base_folder = "/data/hjy/realtimeds_cropped/Sponza0219"
+output_folder = "/data/yy/realtimeds_npz/Sponza0219_train"
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Cropped data to NPZ')
     parser.add_argument('--base_folder', type=str, default=base_folder,
