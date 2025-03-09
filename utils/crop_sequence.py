@@ -3,15 +3,12 @@ import cv2
 import numpy as np
 from pathlib import Path
 import shutil
-
+import argparse
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 class SequenceCropper:
     def __init__(self, 
-                 source_dir: str,
-                 output_dir: str,
-                 lr_size: tuple = (128, 128),
-                 hr_size: tuple = (256, 256)):
+                 args: argparse.Namespace):
         """
         初始化序列裁剪器
         Args:
@@ -20,10 +17,13 @@ class SequenceCropper:
             lr_size: 低分辨率裁剪大小
             hr_size: 高分辨率裁剪大小
         """
-        self.source_dir = Path(source_dir)
-        self.output_dir = Path(output_dir)
-        self.lr_size = lr_size
-        self.hr_size = hr_size
+        self.source_dir = Path(args.source_dir)
+        self.output_dir = Path(args.output_dir)
+        self.lr_size = args.lr_size
+        self.hr_size = args.hr_size
+        self.render_height = args.render_height
+        self.render_width = args.render_width
+        self.num_frames = args.num_frames
         
         # 确保输出目录存在
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -62,8 +62,8 @@ class SequenceCropper:
             num_frames: 总帧数，用于计算连续的frame ID
         """
         # 获取所有需要处理的文件
-        lr_dir = frame_dir / "540"
-        hr_dir = frame_dir / "1080"
+        lr_dir = frame_dir / f"{self.render_height}"
+        hr_dir = frame_dir / f"{self.render_height * 2}"
         
         # 读取参考图像确定尺寸
         reference = self.load_exr(hr_dir / "reference.exr")
@@ -95,8 +95,8 @@ class SequenceCropper:
                 
                 # 创建输出目录
                 out_frame_dir = self.output_dir / f"frame{continuous_frame_id:04d}"
-                out_lr_dir = out_frame_dir / "540"
-                out_hr_dir = out_frame_dir / "1080"
+                out_lr_dir = out_frame_dir / f"{self.render_height}"
+                out_hr_dir = out_frame_dir / f"{self.render_height * 2}"
                 
                 out_lr_dir.mkdir(parents=True, exist_ok=True)
                 out_hr_dir.mkdir(parents=True, exist_ok=True)
@@ -124,7 +124,10 @@ class SequenceCropper:
         """处理整个序列"""
         # 获取所有帧目录
         frame_dirs = sorted([d for d in self.source_dir.iterdir() if d.is_dir()])
-        num_frames = len(frame_dirs)
+        if self.num_frames is None:
+            num_frames = len(frame_dirs)
+        else:
+            num_frames = min(self.num_frames, len(frame_dirs))
         
         # 处理每一帧
         for frame_idx, frame_dir in enumerate(frame_dirs):
@@ -133,13 +136,18 @@ class SequenceCropper:
 
 def main():
     # 配置参数
-    source_dir = "/data/hjy/realtimeds_raw/Sponza0219/"
-    output_dir = "/data/hjy/realtimeds_cropped/Sponza0219/"
-    lr_size = (128, 128)
-    hr_size = (256, 256)
+    args = argparse.ArgumentParser()
+    args.add_argument("--source_dir", type=str, default="/data/hjy/realtimeds_raw/Sponza0226_540/")
+    args.add_argument("--output_dir", type=str, default="/data/hjy/realtimeds_cropped/Sponza0309_540/")
+    args.add_argument("--lr_size", type=tuple, default=(128, 128))
+    args.add_argument("--hr_size", type=tuple, default=(256, 256))
+    args.add_argument("--render_height", type=int, default=540)
+    args.add_argument("--render_width", type=int, default=960)
+    args.add_argument("--num_frames", type=int, default=None)
+    args = args.parse_args()
     
     # 创建裁剪器并处理序列
-    cropper = SequenceCropper(source_dir, output_dir, lr_size, hr_size)
+    cropper = SequenceCropper(args)
     cropper.process_sequence()
 
 if __name__ == "__main__":

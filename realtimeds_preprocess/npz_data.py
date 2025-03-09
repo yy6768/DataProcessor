@@ -31,11 +31,16 @@ def read_exr_data(exr_path, dataset_name):
     # assert exr_data.shape == (height, width, 3), f"形状异常: {exr_data.shape}"
     return exr_data
 
-def create_test_frame_npzstore(frame_folder, output_path):
+def create_test_frame_npzstore(frame_folder, args):
     """创建测试单帧的 NPZ 存储"""
+    output_path = args.output_folder
+    render_height = args.render_height
+    render_width = args.render_width
+    upscale_height = render_height * 2
+    upscale_width = render_width * 2
     frame_idx = int(os.path.basename(frame_folder).replace('frame', ''))
-    folder_1080 = os.path.join(frame_folder, "1080")
-    folder_540 = os.path.join(frame_folder, "540")
+    folder_upscale = os.path.join(frame_folder, f"{upscale_height}")
+    folder_render = os.path.join(frame_folder, f"{render_height}")
     npz_path = f"{output_path}/frame{frame_idx:04d}.npz"
     data_dict = {}
 
@@ -49,38 +54,37 @@ def create_test_frame_npzstore(frame_folder, output_path):
             'frame_index': np.array([original_frame_id], dtype=np.int32),
             'pre_offset': np.array([pre_offset_x, pre_offset_y], dtype=np.int32)
         }
-        # 540p 分辨率数据
-        data_dict['540'] = {}
+        # 低清p 分辨率数据
+        data_dict[f'{render_height}'] = {}
         # 带采样维度的数据 [B,C,H,W,S]
-        sample_shape = (1, 3, 540, 960, 8)  # 8个采样，裁剪后的尺寸
-        base_shape = (1, 3, 540, 960)
+        sample_shape = (1, 3, render_height, render_width, 8)  # 8个采样，裁剪后的尺寸
+        base_shape = (1, 3, render_height, render_width)
 
         # 处理多采样数据
         datasets = ['color', 'diffuse', 'specular', 'RTXDI']
-        for i, dataset_name in enumerate(datasets):
+        for _, dataset_name in enumerate(datasets):
             data = np.zeros(sample_shape, dtype=np.float32)
             for j in range(8):
-                exr_path = os.path.join(folder_540, f'{dataset_name}{i}.exr')
+                exr_path = os.path.join(folder_render, f'{dataset_name}{j}.exr')
                 # imageio 直接读取为RGB顺序
                 exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
                 exr_data = np.transpose(exr_data, (2, 0, 1))
                 data[0, :, :, :, j] = exr_data
-            data_dict['540'][dataset_name] = data
+            data_dict[f'{render_height}'][dataset_name] = data
 
         # 处理其他4维度数据
         datasets = ['albedo', 'depth', 'motion', 'normal']
         for i, dataset_name in enumerate(datasets):
             if dataset_name == 'depth':
-                shape = (1, 1, 540, 960)
+                shape = (1, 1, render_height, render_width)
             elif dataset_name == 'motion':
-                shape = (1, 2, 540, 960)
+                shape = (1, 2, render_height, render_width)
             else:
                 shape = base_shape
 
             # 使用 OpenEXR 读取 EXR 文件
-            exr_path = os.path.join(folder_540, f'{dataset_name}.exr')
+            exr_path = os.path.join(folder_render, f'{dataset_name}.exr')
             exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
-            print(f"statistic of {dataset_name}: min {np.min(exr_data)}, max {np.max(exr_data)}, mean {np.mean(exr_data)}, nan {np.isnan(exr_data).any()}")
             data = np.zeros(shape, dtype=np.float32)
             
             if dataset_name == 'depth':
@@ -90,23 +94,23 @@ def create_test_frame_npzstore(frame_folder, output_path):
             else:
                 data[0] = np.transpose(exr_data[..., :3], (2, 0, 1))
 
-            data_dict['540'][dataset_name] = data
+            data_dict[f'{render_height}'][dataset_name] = data
 
         # 1080p 分辨率数据
-        data_dict['1080'] = {}
-        hd_shape = (1, 3, 1080, 1920)  # 裁剪后的高分辨率尺寸
+        data_dict[f'{upscale_height}'] = {}
+        hd_shape = (1, 3, upscale_height, upscale_width)  # 裁剪后的高分辨率尺寸
         # datasets = ['albedo', 'depth', 'motion', 'normal', 'reference']
         datasets = ['reference']
         for i, dataset_name in enumerate(datasets):
             if dataset_name == 'depth':
-                shape = (1, 1, 1080, 1920)
+                shape = (1, 1, upscale_height, upscale_width)
             elif dataset_name == 'motion':
-                shape = (1, 2, 1080, 1920)
+                shape = (1, 2, upscale_height, upscale_width)
             else:
                 shape = hd_shape
 
             data = np.zeros(shape, dtype=np.float32)
-            exr_path = os.path.join(folder_1080, f'{dataset_name}.exr')
+            exr_path = os.path.join(folder_upscale, f'{dataset_name}.exr')
             # exr_data = iio.imread(exr_path).astype(np.float32)
             exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
             
@@ -117,17 +121,23 @@ def create_test_frame_npzstore(frame_folder, output_path):
             else:
                 data[0] = np.transpose(exr_data[..., :3], (2, 0, 1))
 
-            data_dict['1080'][dataset_name] = data
+            data_dict[f'{upscale_height}'][dataset_name] = data
     finally:
         np.savez_compressed(npz_path, **data_dict)
 
-def create_cropped_frame_npzstore(frame_folder, output_path):
+def create_cropped_frame_npzstore(frame_folder, args):
     """创建裁剪后单帧的 NPZ 存储"""
+    output_path = args.output_folder
+    render_height = args.render_height
+    render_width = args.render_width
+    upscale_height = render_height * 2
+    crop_height = args.crop_height
+    crop_width = args.crop_width
     base_folder = os.path.dirname(frame_folder)
     frame_idx = int(os.path.basename(frame_folder).replace('frame', ''))
     offset_file = os.path.join(frame_folder, "offset.txt")
-    folder_1080 = os.path.join(frame_folder, "1080")
-    folder_540 = os.path.join(frame_folder, "540")
+    folder_upscale = os.path.join(frame_folder, f"{upscale_height}")
+    folder_render = os.path.join(frame_folder, f"{render_height}")
     id_file = os.path.join(frame_folder, "frameId.txt")
     npz_path = f"{output_path}/frame{frame_idx:04d}.npz"
     data_dict = {}
@@ -153,37 +163,38 @@ def create_cropped_frame_npzstore(frame_folder, output_path):
             'frame_index': np.array([original_frame_id], dtype=np.int32),
             'pre_offset': np.array([pre_offset_x, pre_offset_y], dtype=np.int32)
         }
-        # 540p 分辨率数据
-        data_dict['540'] = {}
+        # 低清 分辨率数据
+        data_dict[f'{render_height}'] = {}
         # 带采样维度的数据 [B,C,H,W,S]
-        sample_shape = (1, 3, 128, 128, 8)  # 8个采样，裁剪后的尺寸
-        base_shape = (1, 3, 128, 128)
+        sample_shape = (1, 3, crop_height, crop_width, 8)  # 8个采样，裁剪后的尺寸
+        base_shape = (1, 3, crop_height, crop_width)
 
         # 处理多采样数据
-        datasets = ['color', 'diffuse', 'specular']
+        datasets = ['color', 'diffuse', 'specular', 'RTXDI']
         for i, dataset_name in enumerate(datasets):
             data = np.zeros(sample_shape, dtype=np.float32)
             for j in range(8):
-                exr_path = os.path.join(folder_540, f'{dataset_name}{i}.exr')
+                exr_path = os.path.join(folder_render, f'{dataset_name}{j}.exr')
                 # imageio 直接读取为RGB顺序
                 # exr_data = iio.imread(exr_path)[..., :3].astype(np.float32)
                 exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
                 exr_data = np.transpose(exr_data, (2, 0, 1))
                 data[0, :, :, :, j] = exr_data
-            data_dict['540'][dataset_name] = data
+
+            data_dict[f'{render_height}'][dataset_name] = data
 
         # 处理其他4维度数据
         datasets = ['albedo', 'depth', 'motion', 'normal']
         for i, dataset_name in enumerate(datasets):
             if dataset_name == 'depth':
-                shape = (1, 1, 128, 128)
+                shape = (1, 1, crop_height, crop_width)
             elif dataset_name == 'motion':
-                shape = (1, 2, 128, 128)
+                shape = (1, 2, crop_height, crop_width)
             else:
                 shape = base_shape
 
             data = np.zeros(shape, dtype=np.float32)
-            exr_path = os.path.join(folder_540, f'{dataset_name}.exr')
+            exr_path = os.path.join(folder_render, f'{dataset_name}.exr')
             # exr_data = iio.imread(exr_path).astype(np.float32)
             exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
             if dataset_name == 'depth':
@@ -193,23 +204,23 @@ def create_cropped_frame_npzstore(frame_folder, output_path):
             else:
                 data[0] = np.transpose(exr_data[..., :3], (2, 0, 1))
 
-            data_dict['540'][dataset_name] = data
+            data_dict[f'{render_height}'][dataset_name] = data
 
         # 1080p 分辨率数据
-        data_dict['1080'] = {}
-        hd_shape = (1, 3, 256, 256)  # 裁剪后的高分辨率尺寸
+        data_dict[f'{upscale_height}'] = {}
+        hd_shape = (1, 3, 2 * crop_height, 2 * crop_width)  # 裁剪后的高分辨率尺寸
         # datasets = ['albedo', 'depth', 'motion', 'normal', 'reference']
         datasets = ['reference']
         for i, dataset_name in enumerate(datasets):
             if dataset_name == 'depth':
-                shape = (1, 1, 256, 256)
+                shape = (1, 1, 2 * crop_height, 2 * crop_width)
             elif dataset_name == 'motion':
-                shape = (1, 2, 256, 256)
+                shape = (1, 2, 2 * crop_height, 2 * crop_width)
             else:
                 shape = hd_shape
 
             data = np.zeros(shape, dtype=np.float32)
-            exr_path = os.path.join(folder_1080, f'{dataset_name}.exr')
+            exr_path = os.path.join(folder_upscale, f'{dataset_name}.exr')
             # exr_data = iio.imread(exr_path).astype(np.float32)
             exr_data = read_exr_data(exr_path, dataset_name).astype(np.float32)
             
@@ -220,7 +231,7 @@ def create_cropped_frame_npzstore(frame_folder, output_path):
             else:
                 data[0] = np.transpose(exr_data[..., :3], (2, 0, 1))
 
-            data_dict['1080'][dataset_name] = data
+            data_dict[f'{upscale_height}'][dataset_name] = data
     finally:
         np.savez_compressed(npz_path, **data_dict)
 
@@ -235,25 +246,33 @@ def main(args):
         # 从文件夹名称中提取帧索引
         frame_idx = int(os.path.basename(frame_folder).replace('frame', ''))
         
-        create_cropped_frame_npzstore(
-            frame_folder,
-            args.output_folder, 
-        )
         # create_test_frame_npzstore(
         #     frame_folder,
-        #     args.output_folder, 
+        #     args, 
         # )
+        create_test_frame_npzstore(
+            frame_folder,
+            args, 
+        )
         print(f"Processed frame {frame_idx}")
 
 
 base_folder = "/data/hjy/realtimeds_cropped/Sponza0219"
-output_folder = "/data/yy/realtimeds_npz/Sponza0219_train"
+output_folder = "/data/yy/realtimeds_npz/Sponza0219_test"
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Cropped data to NPZ')
     parser.add_argument('--base_folder', type=str, default=base_folder,
                       help='Input cropped data folder')
     parser.add_argument('--output_folder', type=str, default=output_folder,
                       help='Npz output folder')
+    parser.add_argument('--render_height', type=int, default=540,
+                      help='Render height')
+    parser.add_argument('--render_width', type=int, default=960,
+                      help='Render width')
+    parser.add_argument('--crop_height', type=int, default=128,
+                      help='Crop height')
+    parser.add_argument('--crop_width', type=int, default=128,
+                      help='Crop width')
 
     args = parser.parse_args()
     main(args)
