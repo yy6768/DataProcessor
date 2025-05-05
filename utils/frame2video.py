@@ -1,4 +1,5 @@
 import os
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 import cv2
 import numpy as np
 import OpenEXR
@@ -50,7 +51,7 @@ def read_exr(exr_path):
     rgb[..., 0] = R.reshape(size[1], size[0])  # R通道
     rgb[..., 1] = G.reshape(size[1], size[0])  # G通道
     rgb[..., 2] = B.reshape(size[1], size[0])  # B通道
-    
+    rgb = rgb * 2
     return rgb
 
 def tone_mapping(hdr_img, gamma=2.2, exposure=1.0):
@@ -111,11 +112,68 @@ def frames_to_video(frame_dir, output_video_path, fps=30, gamma=2.2, exposure=1.
     writer.release()
     print(f"Video saved to {output_video_path}")
 
+def preview_reference(scene_path, output_path, resolution=(1920, 1080), gamma=2.2, exposure=1.0):
+    """
+    从场景路径中收集参考帧并生成预览视频。
+
+    参数:
+    scene_path (str): 场景路径，包含帧文件夹
+    output_path (str): 输出视频文件的路径
+    resolution (tuple): 视频分辨率，默认为(1920, 1080)
+    """
+    import os
+    import cv2
+    import numpy as np
+    import re
+    
+    # 获取所有帧文件夹
+    frame_folders = [f for f in os.listdir(scene_path) if re.match(r'frame\d+', f)]
+    # 去除前30个frame
+    pre_offset = 0
+    frames = 240
+    frame_folders = frame_folders[pre_offset:pre_offset+frames]
+    frame_folders.sort()  # 确保按顺序处理
+    
+    if not frame_folders:
+        raise ValueError(f"在路径 {scene_path} 中未找到帧文件夹")
+    
+    # 创建视频写入器
+    width, height = resolution
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    writer = cv2.VideoWriter(output_path, fourcc, 30, resolution)
+    
+    resolution_height_str = str(height)
+    
+    for frame_folder in frame_folders:
+        reference_path = os.path.join(scene_path, frame_folder, resolution_height_str, "reference.exr")
+        
+        if not os.path.exists(reference_path):
+            print(f"警告: 未找到文件 {reference_path}")
+            continue
+        
+        try:
+            # 使用我们自己的read_exr函数代替OpenCV的imread
+            hdr_image = read_exr(reference_path)
+            ldr_image = tone_mapping(hdr_image, gamma, exposure)
+            
+            # 确保图像尺寸正确
+            ldr_image = cv2.resize(ldr_image, resolution)
+            
+            # 写入视频
+            writer.write(ldr_image)
+        except Exception as e:
+            print(f"处理文件 {reference_path} 失败: {str(e)}")
+    
+    writer.release()
+    print(f"参考预览视频已保存至 {output_path}")
+
+
 if __name__ == "__main__":
-    # HDR示例
-    frames_to_video(r"G:\optix\output_motion",
-                   r"G:\optix\video\bistro1_0116_motion.mp4",
-                   gamma=2.2,
-                   exposure=1.0)
+    os.makedirs(r"video", exist_ok=True)
+    preview_reference(r"E:\RealtimeDS\data\classroom_0315",
+                      r"video\classroom_preview.mp4",
+                      resolution=(1920, 1080),
+                      gamma=2.2,
+                      exposure=1.0)
 
 

@@ -40,3 +40,19 @@ var/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# video
+*.mp4
+*.avi
+*.mov
+*.flv
+*.wmv
+*.mkv
+
+# zip
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2
